@@ -1,6 +1,15 @@
 import streamlit as st
 import pandas as pd
 
+# ===== Simple password protection =====
+PASSWORD = "cowboy"
+
+st.title("Football Benchmark App Login")
+input_password = st.text_input("Enter password to continue:", type="password")
+
+if input_password != PASSWORD:
+    st.stop()
+
 st.title("Football Benchmark App")
 st.write("Select a position and a metric to view benchmark ranges or test a value.")
 
