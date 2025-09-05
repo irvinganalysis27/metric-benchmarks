@@ -14,13 +14,14 @@ st.title("Football Benchmark App")
 st.write("Select a position and a metric to view benchmark ranges or test a value.")
 
 # ===== Load your Excel file with multiple sheets =====
-excel_file = "benchmarks.xlsx"
+excel_file = "benchmarks.xlsx"  # Make sure this file is in the same folder as app.py
 all_sheets = pd.read_excel(excel_file, sheet_name=None)
 
-# Clean up column names
+# Clean up column names to remove trailing spaces
 for key in all_sheets:
     all_sheets[key].columns = all_sheets[key].columns.str.strip()
 
+# Map sheet names to positions (use your exact sheet names)
 data_by_position = {
     "Centre Forward": all_sheets["Centre Forward"],
     "Centre Midfield": all_sheets["Centre Midfield"],
@@ -30,28 +31,28 @@ data_by_position = {
     "Goalkeeper": all_sheets["Goalkeeper"]
 }
 
-# ===== Handle session state for position and metric =====
-if "position" not in st.session_state:
-    st.session_state.position = "Centre Forward"
+# ===== Select position and metric =====
+positions = list(data_by_position.keys())
+selected_position = st.selectbox("Select Position", positions)
 
-if "metric" not in st.session_state:
-    st.session_state.metric = None
-
-# Select position
-selected_position = st.selectbox("Select Position", list(data_by_position.keys()), index=list(data_by_position.keys()).index(st.session_state.position))
-st.session_state.position = selected_position
-
+# Load the appropriate DataFrame
 df = data_by_position[selected_position]
+
+# Set up session state for metric selection
+if "selected_metric" not in st.session_state:
+    st.session_state.selected_metric = df["Metric"].iloc[0]
+
 metrics = df["Metric"].tolist()
 
-# Update metric dropdown only if the current metric is not in the new metric list
-if st.session_state.metric not in metrics:
-    st.session_state.metric = metrics[0]
+# Only reset metric if the current one doesn't exist in the new position's metrics
+if st.session_state.selected_metric not in metrics:
+    st.session_state.selected_metric = metrics[0]
 
-selected_metric = st.selectbox("Select Metric", metrics, index=metrics.index(st.session_state.metric))
-st.session_state.metric = selected_metric
+# Metric dropdown (sticky)
+selected_metric = st.selectbox("Select Metric", metrics, index=metrics.index(st.session_state.selected_metric))
+st.session_state.selected_metric = selected_metric
 
-# ===== Show benchmark ranges =====
+# ===== Show benchmark ranges for selected metric =====
 row = df[df["Metric"] == selected_metric].iloc[0]
 
 st.subheader(f"Ranges for {selected_metric}")
@@ -60,19 +61,14 @@ st.markdown(f"<span style='color:orange'>Below Average:</span> {row['Below Avera
 st.markdown(f"<span style='color:grey'>Average:</span> {row['Average']}", unsafe_allow_html=True)
 st.markdown(f"<span style='color:blue'>Good:</span> {row['Good']}", unsafe_allow_html=True)
 st.markdown(f"<span style='color:green'>Excellent:</span> {row['Excellent (>90%)']}", unsafe_allow_html=True)
+
 st.write("**Sustainable Good Range (30-90%)**:", row["Sustainable Good Range (30-90%)"])
 
-# ===== Persistent value input =====
-if "metric_value" not in st.session_state:
-    st.session_state.metric_value = 0.0
+# ===== Value input for the metric =====
+value = st.number_input("Enter your value for this metric", step=0.01, key="metric_value")
+st.session_state.metric_value = value
 
-st.session_state.metric_value = st.number_input(
-    "Enter your value for this metric", 
-    step=0.01,
-    value=st.session_state.metric_value,
-    key="metric_value"
-)
-
+# ===== Helper to classify value =====
 def get_category(val, r):
     def parse_range(text):
         if "-" in text:
@@ -106,6 +102,7 @@ def get_category(val, r):
         return "Excellent", "green"
     return "Out of Range", "black"
 
-if st.session_state.metric_value is not None and st.session_state.metric_value != 0:
-    category, color = get_category(st.session_state.metric_value, row)
+# ===== Show category result =====
+if value is not None and value != 0:
+    category, color = get_category(value, row)
     st.markdown(f"**Your category:** <span style='color:{color}'>{category}</span>", unsafe_allow_html=True)
