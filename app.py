@@ -14,14 +14,13 @@ st.title("Football Benchmark App")
 st.write("Select a position and a metric to view benchmark ranges or test a value.")
 
 # ===== Load your Excel file with multiple sheets =====
-excel_file = "benchmarks.xlsx"  # make sure this file is in the same folder as app.py
+excel_file = "benchmarks.xlsx"
 all_sheets = pd.read_excel(excel_file, sheet_name=None)
 
-# Clean up column names to remove trailing spaces
+# Clean up column names
 for key in all_sheets:
     all_sheets[key].columns = all_sheets[key].columns.str.strip()
 
-# Map sheet names to positions (use your exact sheet names)
 data_by_position = {
     "Centre Forward": all_sheets["Centre Forward"],
     "Centre Midfield": all_sheets["Centre Midfield"],
@@ -31,16 +30,28 @@ data_by_position = {
     "Goalkeeper": all_sheets["Goalkeeper"]
 }
 
-# ===== UI to choose position and metric =====
-positions = list(data_by_position.keys())
-selected_position = st.selectbox("Select Position", positions)
+# ===== Handle session state for position and metric =====
+if "position" not in st.session_state:
+    st.session_state.position = "Centre Forward"
+
+if "metric" not in st.session_state:
+    st.session_state.metric = None
+
+# Select position
+selected_position = st.selectbox("Select Position", list(data_by_position.keys()), index=list(data_by_position.keys()).index(st.session_state.position))
+st.session_state.position = selected_position
 
 df = data_by_position[selected_position]
-
 metrics = df["Metric"].tolist()
-selected_metric = st.selectbox("Select Metric", metrics)
 
-# ===== Show benchmark ranges for selected metric =====
+# Update metric dropdown only if the current metric is not in the new metric list
+if st.session_state.metric not in metrics:
+    st.session_state.metric = metrics[0]
+
+selected_metric = st.selectbox("Select Metric", metrics, index=metrics.index(st.session_state.metric))
+st.session_state.metric = selected_metric
+
+# ===== Show benchmark ranges =====
 row = df[df["Metric"] == selected_metric].iloc[0]
 
 st.subheader(f"Ranges for {selected_metric}")
@@ -49,14 +60,20 @@ st.markdown(f"<span style='color:orange'>Below Average:</span> {row['Below Avera
 st.markdown(f"<span style='color:grey'>Average:</span> {row['Average']}", unsafe_allow_html=True)
 st.markdown(f"<span style='color:blue'>Good:</span> {row['Good']}", unsafe_allow_html=True)
 st.markdown(f"<span style='color:green'>Excellent:</span> {row['Excellent (>90%)']}", unsafe_allow_html=True)
-
 st.write("**Sustainable Good Range (30-90%)**:", row["Sustainable Good Range (30-90%)"])
 
-# ===== Let user input a value and see their category =====
-value = st.number_input("Enter your value for this metric", step=0.01)
+# ===== Persistent value input =====
+if "metric_value" not in st.session_state:
+    st.session_state.metric_value = 0.0
+
+st.session_state.metric_value = st.number_input(
+    "Enter your value for this metric", 
+    step=0.01,
+    value=st.session_state.metric_value,
+    key="metric_value"
+)
 
 def get_category(val, r):
-    # helper to parse a range string like "12.34-56.78"
     def parse_range(text):
         if "-" in text:
             parts = text.split(' ')[0].split('-')
@@ -89,6 +106,6 @@ def get_category(val, r):
         return "Excellent", "green"
     return "Out of Range", "black"
 
-if value is not None and value != 0:
-    category, color = get_category(value, row)
+if st.session_state.metric_value is not None and st.session_state.metric_value != 0:
+    category, color = get_category(st.session_state.metric_value, row)
     st.markdown(f"**Your category:** <span style='color:{color}'>{category}</span>", unsafe_allow_html=True)
